@@ -185,8 +185,13 @@ main(int argc, char *argv[])
                 exit(1);
             }
             if(isNumber(arg2) == 1){
-                if(atoi(arg2) < -32768 & atoi(arg2) < 32767){
-                    bn = bn + atoi(arg2);
+                if(atoi(arg2) > -32768 & atoi(arg2) < 32767){
+                    if(atoi(arg2) < 0){
+                        bn = bn + (atoi(arg2) & mask);
+                    }
+                    else{
+                        bn = bn + atoi(arg2);
+                    }
                 }
                 else{
                     exit(1);
