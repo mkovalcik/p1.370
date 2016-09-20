@@ -47,9 +47,7 @@ main(int argc, char *argv[])
         exit(1);
     }
     
-    char strArr[1000][MAXLINELENGTH];
-    int valArr[1000];
-    
+    static char strArr[65536][MAXLINELENGTH];
     int idx = 0;
     int loc = -1;
     while (readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2)) {
@@ -58,21 +56,6 @@ main(int argc, char *argv[])
                 if(!strcmp(label,strArr[i])) exit(1);
             }
             strcpy(strArr[idx], label);
-            valArr[idx] = idx;
-            if(!strcmp(opcode,".fill")){
-                if(isNumber(arg0) == 1){
-                    valArr[idx] = atoi(arg0);
-                }
-                else{
-                    for(int i = 0; i < idx; i++){
-                        if(!strcmp(arg0,strArr[i])){
-                            loc = i;
-                            break;
-                        }
-                    }
-                    valArr[idx] = loc;
-                }
-            }
         }
         idx = idx + 1;
     }
@@ -92,8 +75,9 @@ main(int argc, char *argv[])
     int mask = 65535;
     int pc = 0;
     int nextPos;
-    loc = -1;
+    
     while(readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2)){
+        loc = -1;
         if (!strcmp(opcode, "add")){
             bn = 0 << 22;
             if(atoi(arg0) > -1 && atoi(arg0) < 8){
@@ -119,21 +103,22 @@ main(int argc, char *argv[])
         }
         else if(!strcmp(opcode, "nor")){
             bn = 1 << 22;
-            if(isNumber(arg0) == 1){
-                bn = atoi(arg0) << 3;
+            if(atoi(arg0) > -1 && atoi(arg0) < 8){
+                temp = atoi(arg0) << 19;
+                bn = bn + temp;
             }
             else{
                 exit(1);
             }
-            if(isNumber(arg1) == 1){
-                bn = atoi(arg1) << 3;
+            if(atoi(arg1) > -1 && atoi(arg1) < 8){
+                temp = atoi(arg1) << 16;
+                bn = bn + temp;
             }
             else{
                 exit(1);
             }
-            bn = 0 << 13;
-            if(isNumber(arg2) == 1){
-                bn = atoi(arg2) << 3;
+            if(atoi(arg2) > -1 && atoi(arg2) < 8){
+                bn = bn + atoi(arg2);
             }
             else{
                 exit(1);
@@ -156,8 +141,17 @@ main(int argc, char *argv[])
                 exit(1);
             }
             if(isNumber(arg2) == 1){
-                bn = bn + atoi(arg2);
-                // see section 4.4 assembler hints Im fucking up rn
+                if(atoi(arg2) > -32768 && atoi(arg2) < 32767){
+                    if(atoi(arg2) < 0){
+                        bn = bn + (atoi(arg2) & mask);
+                    }
+                    else{
+                        bn = bn + atoi(arg2);
+                    }
+                }
+                else{
+                    exit(1);
+                }
             }
             else{
                 for(int i = 0; i < idx; i++){
@@ -176,6 +170,43 @@ main(int argc, char *argv[])
         }
         else if(!strcmp(opcode, "sw")){
             bn = 3 << 22;
+            if(atoi(arg0) > -1 && atoi(arg0) < 8){
+                temp = atoi(arg0) << 19;
+                bn = bn + temp;
+            }
+            else{
+                exit(1);
+            }
+            if(atoi(arg1) > -1 && atoi(arg1) < 8){
+                temp = atoi(arg1) << 16;
+                bn = bn + temp;
+            }
+            else{
+                exit(1);
+            }
+            if(isNumber(arg2) == 1){
+                if(atoi(arg2) > -32768 && atoi(arg2) < 32767){
+                        bn = bn + (atoi(arg2) & mask);
+                }
+                else{
+                    exit(1);
+                }
+            }
+            else{
+                for(int i = 0; i < idx; i++){
+                    if(!strcmp(arg2,strArr[i])){
+                        loc = i;
+                        break;
+                    }
+                }
+                if(loc != -1){
+                    bn = bn + loc;
+                }
+                else{
+                    exit(1);
+                }
+            }
+
         }
         else if(!strcmp(opcode, "beq")){
             bn = 4 << 22;
@@ -194,8 +225,13 @@ main(int argc, char *argv[])
                 exit(1);
             }
             if(isNumber(arg2) == 1){
-                bn = bn + atoi(arg2);
-                // see section 4.4 assembler hints Im fucking up rn
+                if(atoi(arg2) > -32768 && atoi(arg2) < 32767){
+                        bn = bn + (atoi(arg2) & mask);
+                }
+                else{
+                    exit(1);
+                }
+
             }
             else{
                 for(int i = 0; i < idx; i++){
@@ -206,9 +242,7 @@ main(int argc, char *argv[])
                 }
                 if(loc != -1){
                     nextPos = loc - 1 - pc;
-                    if(nextPos < 0){
-                        nextPos = nextPos & mask;
-                    }
+                    nextPos = nextPos & mask;
                     bn = bn + nextPos;
                 }
                 else{
@@ -218,6 +252,20 @@ main(int argc, char *argv[])
         }
         else if(!strcmp(opcode, "jalr")){
             bn = 5 << 22;
+            if(atoi(arg0) > -1 && atoi(arg0) < 8){
+                temp = atoi(arg0) << 19;
+            }
+            else{
+                exit(1);
+            }
+            if(atoi(arg1) > -1 && atoi(arg1) < 8){
+                temp = atoi(arg1) << 16;
+                bn = bn + temp;
+            }
+            else{
+                exit(1);
+            }
+            
         }
         else if(!strcmp(opcode, "halt")){
             bn = 6 << 22;
@@ -231,7 +279,7 @@ main(int argc, char *argv[])
             }
             else{
                 for(int i = 0; i < idx; i++){
-                    if(!strcmp(arg2,strArr[i])){
+                    if(!strcmp(arg0,strArr[i])){
                         loc = i;
                         break;
                     }
@@ -247,17 +295,11 @@ main(int argc, char *argv[])
         else{
             exit(1);
         }
-        printf("%d", bn);
-        printf("\n");
+        fprintf(outFilePtr, "%d", bn);
+        fprintf(outFilePtr, "\n");
         pc = pc + 1;
     }
     
-    
-    /* after doing a readAndParse, you may want to do the following to test the
-     opcode */
-    if (!strcmp(opcode, "add")) {
-        /* do whatever you need to do for opcode "add" */
-    }
     
     return(0);
 }
